@@ -337,10 +337,16 @@ async function sendDocumentMessage(client, userPhone, message, variables) {
     const media = await downloadMediaFromUrl(mediaUrl, mediaFile.mime_type || 'application/pdf');
     
     const caption = message.content ? replaceVariables(message.content, variables) : '';
+    
+    const fileName = mediaFile.file_name || 'documento.pdf';
+    
     const sentMsg = await client.sendMessage(userPhone, media, { 
         sendMediaAsDocument: true,
-        caption 
+        caption,
+        fileName: fileName 
     });
+    
+    logger.info(`[MESSAGE] Documento enviado: ${fileName}`);
     
     return sentMsg.id._serialized;
 }
