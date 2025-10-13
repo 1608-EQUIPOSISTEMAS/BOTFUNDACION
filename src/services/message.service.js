@@ -78,7 +78,7 @@ async function getMessageMedia(messageId) {
  * @param {string} mimeType - Tipo MIME del archivo
  * @returns {Promise<MessageMedia>}
  */
-async function downloadMediaFromUrl(fileUrl, mimeType) {
+async function downloadMediaFromUrl(fileUrl, mimeType, filename = 'file') {
     try {
         logger.info(`[MESSAGE] Descargando media desde: ${fileUrl}`);
         
@@ -90,8 +90,8 @@ async function downloadMediaFromUrl(fileUrl, mimeType) {
         // Convertir a base64
         const base64Data = Buffer.from(response.data, 'binary').toString('base64');
         
-        // Crear MessageMedia
-        const media = new MessageMedia(mimeType, base64Data);
+        // Crear MessageMedia con el nombre del archivo
+        const media = new MessageMedia(mimeType, base64Data, filename);
         
         logger.info(`[MESSAGE] Media descargado exitosamente: ${fileUrl}`);
         
@@ -334,19 +334,22 @@ async function sendDocumentMessage(client, userPhone, message, variables) {
     
     const mediaFile = mediaFiles[0];
     const mediaUrl = buildMediaUrl(mediaFile.file_path);
-    const media = await downloadMediaFromUrl(mediaUrl, mediaFile.mime_type || 'application/pdf');
+    
+    // Pasar el nombre del archivo a downloadMediaFromUrl
+    const media = await downloadMediaFromUrl(
+        mediaUrl, 
+        mediaFile.mime_type || 'application/pdf',
+        'Brochure.pdf'  // Nombre fijo
+    );
     
     const caption = message.content ? replaceVariables(message.content, variables) : '';
     
-    const fileName = mediaFile.file_name || 'documento.pdf';
-    
     const sentMsg = await client.sendMessage(userPhone, media, { 
         sendMediaAsDocument: true,
-        caption,
-        fileName: fileName 
+        caption
     });
     
-    logger.info(`[MESSAGE] Documento enviado: ${fileName}`);
+    logger.info(`[MESSAGE] Documento enviado: Brochure.pdf`);
     
     return sentMsg.id._serialized;
 }

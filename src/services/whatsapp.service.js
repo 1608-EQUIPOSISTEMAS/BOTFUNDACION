@@ -178,9 +178,7 @@ class WhatsAppService {
             const rateLimitCheck = await rateLimitService.checkRateLimit(userPhone);
             if (!rateLimitCheck.allowed) {
                 logger.warn(`[WHATSAPP] Rate limit excedido para ${userPhone}: ${rateLimitCheck.reason}`);
-                
-                const rateLimitMessage = this.getRateLimitMessage(rateLimitCheck.reason);
-                await message.reply(rateLimitMessage);
+                // Simplemente ignorar el mensaje, no responder
                 return;
             }
 
@@ -255,13 +253,16 @@ class WhatsAppService {
      */
     getRateLimitMessage(reason) {
         const messages = {
-            'RATE_LIMIT_HOUR': '🕐 Has consultado varias veces en la última hora. Por favor espera unos minutos antes de volver a intentar.\n\nPara atención inmediata contacta:\n📞 +51 987 654 321',
-            'RATE_LIMIT_DAY': '📊 Has alcanzado el límite de consultas diarias. Mañana podrás volver a usar el bot.\n\nPara atención inmediata:\n📞 +51 987 654 321\n📧 contacto@inmobiliaria.com',
             'BLOCKED_TEMPORARY': '🚫 Tu número está temporalmente bloqueado. Por favor contacta a soporte.',
             'BLOCKED_PERMANENT': '🚫 Tu número está en la lista de bloqueados. Contacta a soporte si crees que es un error.'
         };
 
-        return messages[reason] || 'No puedes usar el bot en este momento. Contacta a soporte.';
+        if (messages[reason]) {
+            return messages[reason];
+        } else {
+            logger.info('[WHATSAPP] No se detectó motivo de rate limit, no se responderá al usuario.');
+            return null; // No responder al usuario si no hay motivo
+        }
     }
 
     /**

@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const config = require('./config/config2');
 const logger = require('./utils/logger');
 const whatsappService = require('./services/whatsapp.service');
@@ -19,6 +21,59 @@ app.use((req, res, next) => {
     logger.info(`${req.method} ${req.path} - IP: ${req.ip}`);
     next();
 });
+
+// ==================== FUNCIÓN DE LIMPIEZA DE SESIÓN ====================
+
+/**
+ * Limpia la carpeta de autenticación de WhatsApp con reintentos
+ */
+async function cleanupAuthFolder(retries = 3) {
+    const authPath = path.join(__dirname, '..', '.wwebjs_auth');
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            if (!fs.existsSync(authPath)) {
+                logger.info('[CLEANUP] No hay carpeta de autenticación para limpiar');
+                return false;
+            }
+            
+            // En Windows, esperar un poco más antes de intentar borrar
+            await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+            
+            // Intentar eliminar
+            fs.rmSync(authPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 1000 });
+            
+            logger.info(`[CLEANUP] 🧹 Carpeta .wwebjs_auth eliminada exitosamente (intento ${attempt})`);
+            return true;
+            
+        } catch (error) {
+            logger.warn(`[CLEANUP] Intento ${attempt}/${retries} falló:`, error.code);
+            
+            if (attempt === retries) {
+                logger.error('[CLEANUP] ❌ No se pudo eliminar la carpeta después de todos los intentos');
+                
+                // En Windows, si falla, al menos intentar renombrar la carpeta
+                try {
+                    const backupPath = authPath + '_old_' + Date.now();
+                    fs.renameSync(authPath, backupPath);
+                    logger.info(`[CLEANUP] Carpeta renombrada a: ${backupPath}`);
+                    logger.info('[CLEANUP] ⚠️ Elimínala manualmente cuando sea posible');
+                    return true;
+                } catch (renameError) {
+                    logger.error('[CLEANUP] No se pudo renombrar la carpeta:', renameError.code);
+                    return false;
+                }
+            }
+            
+            // Esperar antes del siguiente intento
+            if (attempt < retries) {
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+        }
+    }
+    
+    return false;
+}
 
 // ==================== ENDPOINTS ====================
 
@@ -65,8 +120,11 @@ app.post('/start-whatsapp', async (req, res) => {
             .then(() => {
                 logger.info('[API] WhatsApp inicializado correctamente');
             })
-            .catch((error) => {
+            .catch(async (error) => {
                 logger.error('[API] Error inicializando WhatsApp:', error);
+                // Limpiar si falla la inicialización
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                await cleanupAuthFolder();
             });
 
         // Responder inmediatamente (el QR se obtendrá con /get-qr)
@@ -182,19 +240,18 @@ app.post('/cleanup-session', async (req, res) => {
             await whatsappService.destroy();
         }
 
-        // Eliminar carpeta de autenticación
-        const fs = require('fs');
-        const path = require('path');
-        const authPath = path.join(__dirname, '..', '.wwebjs_auth');
+        // Esperar a que el cliente se cierre completamente
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
-        if (fs.existsSync(authPath)) {
-            fs.rmSync(authPath, { recursive: true, force: true });
-            logger.info('[API] Carpeta de autenticación eliminada');
-        }
+        // Eliminar carpeta de autenticación con reintentos
+        const cleaned = await cleanupAuthFolder();
 
         res.json({
             success: true,
-            message: 'Sesión limpiada exitosamente. Puedes iniciar WhatsApp nuevamente.'
+            message: cleaned 
+                ? 'Sesión limpiada exitosamente. Puedes iniciar WhatsApp nuevamente.'
+                : 'Hubo problemas al limpiar la sesión. Intenta cerrar el proceso manualmente.',
+            cleaned
         });
 
     } catch (error) {
@@ -202,6 +259,44 @@ app.post('/cleanup-session', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error al limpiar sesión: ' + error.message
+        });
+    }
+});
+
+/**
+ * POST /force-cleanup
+ * Limpieza forzada (para casos extremos)
+ */
+app.post('/force-cleanup', async (req, res) => {
+    try {
+        logger.info('[API] Solicitud de limpieza FORZADA');
+
+        // Destruir cliente sin esperar
+        try {
+            await whatsappService.destroy();
+        } catch (e) {
+            logger.warn('[API] Error destruyendo cliente (continuando):', e.message);
+        }
+
+        // Esperar más tiempo
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        // Intentar limpiar con más reintentos
+        const cleaned = await cleanupAuthFolder(5);
+
+        res.json({
+            success: cleaned,
+            message: cleaned 
+                ? 'Limpieza forzada exitosa'
+                : 'No se pudo limpiar. Cierra el proceso Node.js y elimina .wwebjs_auth manualmente',
+            cleaned
+        });
+
+    } catch (error) {
+        logger.error('[API] Error en /force-cleanup:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error en limpieza forzada: ' + error.message
         });
     }
 });
@@ -284,6 +379,7 @@ app.get('/', (req, res) => {
             'GET /get-qr': 'Obtener código QR',
             'POST /stop-whatsapp': 'Detener bot',
             'POST /cleanup-session': 'Limpiar sesión',
+            'POST /force-cleanup': 'Limpieza forzada de sesión',
             'GET /status': 'Estado del sistema',
             'GET /health': 'Health check'
         }
@@ -343,6 +439,8 @@ process.on('SIGINT', async () => {
     try {
         await whatsappService.destroy();
         logger.info('[SERVER] WhatsApp cerrado correctamente');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await cleanupAuthFolder();
     } catch (error) {
         logger.error('[SERVER] Error cerrando WhatsApp:', error);
     }
@@ -356,6 +454,8 @@ process.on('SIGTERM', async () => {
     try {
         await whatsappService.destroy();
         logger.info('[SERVER] WhatsApp cerrado correctamente');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await cleanupAuthFolder();
     } catch (error) {
         logger.error('[SERVER] Error cerrando WhatsApp:', error);
     }
