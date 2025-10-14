@@ -9,7 +9,7 @@ const dbRoles = require('./config/database');
 const dbInmobiliaria = require('./config/database2');
 
 const app = express();
-const PORT = config.server.port || 3002;
+const PORT = config.server.port || 3001;
 
 // Middlewares
 app.use(cors());
