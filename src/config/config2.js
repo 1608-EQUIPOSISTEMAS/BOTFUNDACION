@@ -7,7 +7,7 @@ module.exports = {
         database: 'railway'
     },
     server: {
-        port: 3001
+        port: 3002
     },
     rateLimits: {
         hour: 100,
