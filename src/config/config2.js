@@ -7,11 +7,11 @@ module.exports = {
         database: 'railway'
     },
     server: {
-        port: 3001
+        port: 3002
     },
     rateLimits: {
-        hour: 1,
-        day: 2
+        hour: 100,
+        day: 100
     },
     messageDelay: 2,
     frontendMediaUrl: 'https://whatsbotadivisorfronted.onrender.com'
