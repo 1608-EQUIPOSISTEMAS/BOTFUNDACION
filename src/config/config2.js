@@ -1,10 +1,10 @@
 module.exports = {
     database: {
-        host: 'crossover.proxy.rlwy.net',
-        port: 48439,
+        host: 'maglev.proxy.rlwy.net',
+        port: 12663,
         user: 'root',
-        password: 'EGVAnAZfLGGqLQNIBrTRpKzrWthSDyMu',
-        database: 'railway'
+        password: 'SkJAJjOTcAsEXpljmzLvlWPqYXdWgRGl',
+        database: 'inmobiliaria'
     },
     server: {
         port: 3002
