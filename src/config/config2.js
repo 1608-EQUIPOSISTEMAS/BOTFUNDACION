@@ -10,8 +10,8 @@ module.exports = {
         port: 3001
     },
     rateLimits: {
-        hour: 100,
-        day: 100
+        hour: 1,
+        day: 10
     },
     messageDelay: 2,
     frontendMediaUrl: 'https://whatsbotadivisorfronted.onrender.com'
