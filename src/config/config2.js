@@ -7,7 +7,7 @@ module.exports = {
         database: 'inmobiliaria'
     },
     server: {
-        port: 3002
+        port: 3001
     },
     rateLimits: {
         hour: 100,
