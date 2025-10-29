@@ -651,14 +651,35 @@ process.on('SIGTERM', async () => {
 // Manejar errores no capturados
 process.on('uncaughtException', async (error) => {
     logger.error('[SERVER] ❌ Excepción no capturada:', error);
-    await handleWhatsAppError(`Excepción no capturada: ${error.message}`);
+    
+    // NO llamar handleWhatsAppError aquí, solo loguear
+    // Esto evita loops infinitos
+    if (error.message.includes('Execution context was destroyed')) {
+        logger.warn('[SERVER] Error de navegación de Puppeteer detectado, ignorando...');
+        return; // ← NO hacer cleanup en este error
+    }
 });
 
 process.on('unhandledRejection', async (reason, promise) => {
-    logger.error('[SERVER] ❌ Promesa rechazada no manejada:', reason);
-    await handleWhatsAppError(`Promesa rechazada: ${reason}`);
+    const errorMessage = reason?.message || String(reason);
+    logger.error('[SERVER] ❌ Promesa rechazada no manejada:', errorMessage);
+    
+    // SOLO hacer cleanup si es un error CRÍTICO
+    // NO en errores de navegación de Puppeteer
+    if (errorMessage.includes('Execution context was destroyed') ||
+        errorMessage.includes('Navigation') ||
+        errorMessage.includes('Target closed')) {
+        logger.warn('[SERVER] Error de navegación de Puppeteer, ignorando cleanup...');
+        return; // ← NO hacer cleanup
+    }
+    
+    // Solo cleanup en errores verdaderamente críticos
+    if (errorMessage.includes('ECONNREFUSED') || 
+        errorMessage.includes('ETIMEDOUT') ||
+        errorMessage.includes('auth_failure')) {
+        await handleWhatsAppError(`Promesa rechazada: ${errorMessage}`);
+    }
 });
-
 // Iniciar servidor
 startServer();
 
