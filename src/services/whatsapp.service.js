@@ -14,6 +14,7 @@ class WhatsAppService {
         this.isInitializing = false;
         this.currentRole = null;
         this.currentPermissions = [];
+        this.botPhoneNumber = null; // ← NUEVO: Almacenar número del bot
     }
 
     /**
@@ -101,8 +102,10 @@ class WhatsAppService {
             this.qrCodeData = null;
             
             const info = this.client.info;
+            this.botPhoneNumber = info.wid.user; // ← NUEVO: Guardar número del bot
+            
             logger.info(`[WHATSAPP] ✅ Cliente conectado exitosamente`);
-            logger.info(`[WHATSAPP] Número: ${info.wid.user}`);
+            logger.info(`[WHATSAPP] Número: ${this.botPhoneNumber}`);
             logger.info(`[WHATSAPP] Nombre: ${info.pushname}`);
         });
 
@@ -122,6 +125,7 @@ class WhatsAppService {
         this.client.on('disconnected', (reason) => {
             this.isReady = false;
             this.qrCodeData = null;
+            this.botPhoneNumber = null; // ← NUEVO: Limpiar número del bot
             logger.warn(`[WHATSAPP] Cliente desconectado: ${reason}`);
         });
 
@@ -194,17 +198,18 @@ class WhatsAppService {
             // PASO 4: Actualizar rate limit
             await rateLimitService.updateRateLimit(userPhone);
 
-            // PASO 5: Crear conversación
+            // PASO 5: Crear conversación CON EL NÚMERO DEL BOT
             const conversationId = await conversationService.createConversation({
                 userPhone,
                 userName,
                 campaignId: campaignMatch.campaignId,
                 triggerMessage: messageText,
                 matchedKeyword: campaignMatch.matchedKeyword,
-                matchType: campaignMatch.matchType
+                matchType: campaignMatch.matchType,
+                corse: this.botPhoneNumber // ← NUEVO: Pasar número del bot
             });
 
-            logger.info(`[WHATSAPP] 💬 Conversación creada: ID ${conversationId}`);
+            logger.info(`[WHATSAPP] 💬 Conversación creada: ID ${conversationId} - Bot: ${this.botPhoneNumber}`);
 
             // PASO 6: Obtener mensajes de la campaña
             const messages = await messageService.getCampaignMessages(campaignMatch.campaignId);
@@ -261,7 +266,7 @@ class WhatsAppService {
             return messages[reason];
         } else {
             logger.info('[WHATSAPP] No se detectó motivo de rate limit, no se responderá al usuario.');
-            return null; // No responder al usuario si no hay motivo
+            return null;
         }
     }
 
@@ -273,7 +278,8 @@ class WhatsAppService {
             isReady: this.isReady,
             isInitializing: this.isInitializing,
             hasQR: this.qrCodeData !== null,
-            role: this.currentRole
+            role: this.currentRole,
+            botNumber: this.botPhoneNumber // ← NUEVO: Incluir número del bot en status
         };
     }
 
@@ -282,6 +288,13 @@ class WhatsAppService {
      */
     getQRCode() {
         return this.qrCodeData;
+    }
+
+    /**
+     * Obtiene el número del bot actual
+     */
+    getBotPhoneNumber() {
+        return this.botPhoneNumber;
     }
 
     /**
@@ -296,6 +309,7 @@ class WhatsAppService {
                 this.isReady = false;
                 this.isInitializing = false;
                 this.qrCodeData = null;
+                this.botPhoneNumber = null; // ← NUEVO: Limpiar número del bot
                 logger.info('[WHATSAPP] Cliente destruido exitosamente');
             }
         } catch (error) {
