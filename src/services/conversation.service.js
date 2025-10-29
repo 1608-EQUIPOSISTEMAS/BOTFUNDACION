@@ -8,23 +8,47 @@ const logger = require('../utils/logger');
  */
 async function createConversation(data) {
     try {
-        const { userPhone, userName, campaignId, triggerMessage, matchedKeyword, matchType } = data;
+        const { userPhone, userName, campaignId, triggerMessage, matchedKeyword, matchType, corse } = data;
         
         const [result] = await db.query(
             `INSERT INTO bot_conversations 
-            (user_phone, user_name, campaign_id, trigger_message, matched_keyword, match_type, status, conversation_started_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'INITIATED', NOW())`,
-            [userPhone, userName, campaignId, triggerMessage, matchedKeyword, matchType]
+            (user_phone, user_name, campaign_id, trigger_message, matched_keyword, match_type, corse, status, conversation_started_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'INITIATED', NOW())`,
+            [userPhone, userName, campaignId, triggerMessage, matchedKeyword, matchType, corse]
         );
         
         const conversationId = result.insertId;
         
-        logger.info(`[CONVERSATION] Nueva conversación creada: ID ${conversationId} - Usuario: ${userPhone} - Campaña: ${campaignId}`);
+        logger.info(`[CONVERSATION] Nueva conversación creada: ID ${conversationId} - Usuario: ${userPhone} - Campaña: ${campaignId} - Línea: ${corse}`);
         
         return conversationId;
         
     } catch (error) {
         logger.error('[CONVERSATION] Error creando conversación:', error);
+        throw error;
+    }
+}
+
+/**
+ * Actualiza la línea (corse) de respuesta de una conversación
+ * @param {number} conversationId - ID de la conversación
+ * @param {string} corse - Número de línea que responde
+ * @returns {Promise<void>}
+ */
+async function updateConversationCorse(conversationId, corse) {
+    try {
+        await db.query(
+            `UPDATE bot_conversations 
+            SET corse = ?,
+                updated_at = NOW()
+            WHERE id = ?`,
+            [corse, conversationId]
+        );
+        
+        logger.info(`[CONVERSATION] Línea actualizada: ID ${conversationId} -> ${corse}`);
+        
+    } catch (error) {
+        logger.error(`[CONVERSATION] Error actualizando línea de conversación ${conversationId}:`, error);
         throw error;
     }
 }
@@ -88,24 +112,32 @@ async function incrementMessagesSent(conversationId) {
 /**
  * Verifica si el usuario tiene una conversación activa
  * @param {string} userPhone - Número de teléfono
+ * @param {string} corse - Número de línea (opcional, para filtrar por línea específica)
  * @returns {Promise<object|null>}
  */
-async function getActiveConversation(userPhone) {
+async function getActiveConversation(userPhone, corse = null) {
     try {
-        const [conversations] = await db.query(
-            `SELECT 
+        let query = `SELECT 
                 id,
                 campaign_id,
+                corse,
                 status,
                 messages_sent,
                 conversation_started_at
             FROM bot_conversations
             WHERE user_phone = ?
-                AND status IN ('INITIATED', 'IN_PROGRESS')
-            ORDER BY conversation_started_at DESC
-            LIMIT 1`,
-            [userPhone]
-        );
+                AND status IN ('INITIATED', 'IN_PROGRESS')`;
+        
+        const params = [userPhone];
+        
+        if (corse) {
+            query += ` AND corse = ?`;
+            params.push(corse);
+        }
+        
+        query += ` ORDER BY conversation_started_at DESC LIMIT 1`;
+        
+        const [conversations] = await db.query(query, params);
         
         if (conversations.length === 0) {
             return null;
@@ -205,20 +237,27 @@ async function failConversation(conversationId, reason = null) {
 /**
  * Obtiene estadísticas de conversaciones por usuario
  * @param {string} userPhone - Número de teléfono
+ * @param {string} corse - Número de línea (opcional)
  * @returns {Promise<object>}
  */
-async function getUserConversationStats(userPhone) {
+async function getUserConversationStats(userPhone, corse = null) {
     try {
-        const [stats] = await db.query(
-            `SELECT 
+        let query = `SELECT 
                 COUNT(*) as total_conversations,
                 SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed,
                 MAX(conversation_started_at) as last_conversation
             FROM bot_conversations
-            WHERE user_phone = ?`,
-            [userPhone]
-        );
+            WHERE user_phone = ?`;
+        
+        const params = [userPhone];
+        
+        if (corse) {
+            query += ` AND corse = ?`;
+            params.push(corse);
+        }
+        
+        const [stats] = await db.query(query, params);
         
         return stats[0] || {
             total_conversations: 0,
@@ -233,13 +272,46 @@ async function getUserConversationStats(userPhone) {
     }
 }
 
+/**
+ * Obtiene todas las conversaciones activas por línea
+ * @param {string} corse - Número de línea
+ * @returns {Promise<Array>}
+ */
+async function getActiveConversationsByCorse(corse) {
+    try {
+        const [conversations] = await db.query(
+            `SELECT 
+                id,
+                user_phone,
+                user_name,
+                campaign_id,
+                status,
+                messages_sent,
+                conversation_started_at
+            FROM bot_conversations
+            WHERE corse = ?
+                AND status IN ('INITIATED', 'IN_PROGRESS')
+            ORDER BY conversation_started_at DESC`,
+            [corse]
+        );
+        
+        return conversations;
+        
+    } catch (error) {
+        logger.error(`[CONVERSATION] Error obteniendo conversaciones activas para línea ${corse}:`, error);
+        throw error;
+    }
+}
+
 module.exports = {
     createConversation,
+    updateConversationCorse,
     updateConversationStatus,
     incrementMessagesSent,
     getActiveConversation,
     getConversationById,
     completeConversation,
     failConversation,
-    getUserConversationStats
+    getUserConversationStats,
+    getActiveConversationsByCorse
 };
