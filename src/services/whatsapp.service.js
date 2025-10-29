@@ -14,7 +14,10 @@ class WhatsAppService {
         this.isInitializing = false;
         this.currentRole = null;
         this.currentPermissions = [];
-        this.botPhoneNumber = null; // ← NUEVO: Almacenar número del bot
+        this.botPhoneNumber = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 3;
+        this.reconnectDelay = 5000; // 5 segundos
     }
 
     /**
@@ -54,13 +57,21 @@ class WhatsAppService {
                         '--disable-accelerated-2d-canvas',
                         '--no-first-run',
                         '--no-zygote',
-                        '--disable-gpu'
-                    ]
+                        '--disable-gpu',
+                        '--disable-software-rasterizer',
+                        '--disable-extensions'
+                    ],
+                    ignoreDefaultArgs: ['--disable-extensions'],
+                    timeout: 60000 // 60 segundos timeout
                 },
                 webVersionCache: {
                     type: 'remote',
                     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
-                }
+                },
+                // Configuración adicional para estabilidad
+                qrMaxRetries: 5,
+                takeoverOnConflict: true,
+                takeoverTimeoutMs: 0
             });
 
             this.setupEventHandlers();
@@ -73,8 +84,36 @@ class WhatsAppService {
         } catch (error) {
             this.isInitializing = false;
             logger.error('[WHATSAPP] Error inicializando cliente:', error);
+            
+            // Intentar reconexión automática
+            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                logger.info(`[WHATSAPP] Intentando reconexión ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+                
+                await this.delay(this.reconnectDelay);
+                
+                // Limpiar cliente anterior
+                if (this.client) {
+                    try {
+                        await this.client.destroy();
+                    } catch (e) {
+                        // Ignorar errores al destruir
+                    }
+                    this.client = null;
+                }
+                
+                return this.initialize(role, permissions);
+            }
+            
             throw error;
         }
+    }
+
+    /**
+     * Delay helper
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
@@ -100,9 +139,10 @@ class WhatsAppService {
             this.isReady = true;
             this.isInitializing = false;
             this.qrCodeData = null;
+            this.reconnectAttempts = 0; // Reset intentos de reconexión
             
             const info = this.client.info;
-            this.botPhoneNumber = info.wid.user; // ← NUEVO: Guardar número del bot
+            this.botPhoneNumber = info.wid.user;
             
             logger.info(`[WHATSAPP] ✅ Cliente conectado exitosamente`);
             logger.info(`[WHATSAPP] Número: ${this.botPhoneNumber}`);
@@ -122,11 +162,42 @@ class WhatsAppService {
         });
 
         // Evento: Cliente desconectado
-        this.client.on('disconnected', (reason) => {
+        this.client.on('disconnected', async (reason) => {
             this.isReady = false;
             this.qrCodeData = null;
-            this.botPhoneNumber = null; // ← NUEVO: Limpiar número del bot
+            this.botPhoneNumber = null;
+            
             logger.warn(`[WHATSAPP] Cliente desconectado: ${reason}`);
+            
+            // Si no fue un logout manual, intentar reconectar
+            if (reason !== 'LOGOUT' && this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                logger.info(`[WHATSAPP] Intentando reconexión automática ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+                
+                await this.delay(this.reconnectDelay);
+                
+                try {
+                    // Destruir cliente actual
+                    if (this.client) {
+                        try {
+                            await this.client.destroy();
+                        } catch (e) {
+                            // Ignorar errores
+                        }
+                        this.client = null;
+                    }
+                    
+                    // Reinicializar
+                    await this.initialize(this.currentRole, this.currentPermissions);
+                } catch (error) {
+                    logger.error('[WHATSAPP] Error en reconexión automática:', error);
+                }
+            }
+        });
+
+        // Evento: Cambio de estado (para debugging)
+        this.client.on('change_state', (state) => {
+            logger.info(`[WHATSAPP] Estado cambiado: ${state}`);
         });
 
         // Evento: Mensaje recibido (PRINCIPAL)
@@ -137,6 +208,11 @@ class WhatsAppService {
         // Evento: Error
         this.client.on('error', (error) => {
             logger.error('[WHATSAPP] Error en el cliente:', error);
+        });
+
+        // Evento: Cargando (para saber cuándo está cargando)
+        this.client.on('loading_screen', (percent, message) => {
+            logger.info(`[WHATSAPP] Cargando: ${percent}% - ${message}`);
         });
     }
 
@@ -182,7 +258,6 @@ class WhatsAppService {
             const rateLimitCheck = await rateLimitService.checkRateLimit(userPhone);
             if (!rateLimitCheck.allowed) {
                 logger.warn(`[WHATSAPP] Rate limit excedido para ${userPhone}: ${rateLimitCheck.reason}`);
-                // Simplemente ignorar el mensaje, no responder
                 return;
             }
 
@@ -206,7 +281,7 @@ class WhatsAppService {
                 triggerMessage: messageText,
                 matchedKeyword: campaignMatch.matchedKeyword,
                 matchType: campaignMatch.matchType,
-                corse: this.botPhoneNumber // ← NUEVO: Pasar número del bot
+                corse: this.botPhoneNumber
             });
 
             logger.info(`[WHATSAPP] 💬 Conversación creada: ID ${conversationId} - Bot: ${this.botPhoneNumber}`);
@@ -279,7 +354,8 @@ class WhatsAppService {
             isInitializing: this.isInitializing,
             hasQR: this.qrCodeData !== null,
             role: this.currentRole,
-            botNumber: this.botPhoneNumber // ← NUEVO: Incluir número del bot en status
+            botNumber: this.botPhoneNumber,
+            reconnectAttempts: this.reconnectAttempts
         };
     }
 
@@ -309,7 +385,8 @@ class WhatsAppService {
                 this.isReady = false;
                 this.isInitializing = false;
                 this.qrCodeData = null;
-                this.botPhoneNumber = null; // ← NUEVO: Limpiar número del bot
+                this.botPhoneNumber = null;
+                this.reconnectAttempts = 0;
                 logger.info('[WHATSAPP] Cliente destruido exitosamente');
             }
         } catch (error) {
