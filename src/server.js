@@ -41,13 +41,13 @@ async function cleanupSessionFolders(retries = 3) {
     }
 
     cleanupInProgress = true;
-    logger.info('[CLEANUP] 🧹 Iniciando limpieza de carpetas de sesión...');
+        logger.info('[CLEANUP] 🧹 Iniciando limpieza de carpetas de sesión...');
 
     const foldersToClean = ['.wwebjs_auth', '.wwebjs_cache'];
-    
+
     for (const folder of foldersToClean) {
         const folderPath = path.join(__dirname, '..', folder);
-        
+
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
                 if (!fs.existsSync(folderPath)) {
@@ -59,11 +59,11 @@ async function cleanupSessionFolders(retries = 3) {
                 await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
 
                 // Eliminar carpeta
-                fs.rmSync(folderPath, { 
-                    recursive: true, 
-                    force: true, 
-                    maxRetries: 3, 
-                    retryDelay: 1000 
+                fs.rmSync(folderPath, {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 3,
+                    retryDelay: 1000
                 });
 
                 logger.info(`[CLEANUP] ✅ Carpeta ${folder} eliminada (intento ${attempt})`);
@@ -75,7 +75,7 @@ async function cleanupSessionFolders(retries = 3) {
                 if (attempt === retries) {
                     logger.error(`[CLEANUP] ❌ No se pudo eliminar ${folder} después de ${retries} intentos`);
 
-                    // Intentar renombrar como último recurso (Windows)
+                     // Intentar renombrar como último recurso (Windows)
                     try {
                         const backupPath = folderPath + '_old_' + Date.now();
                         fs.renameSync(folderPath, backupPath);
@@ -102,9 +102,9 @@ async function verifySessionHealth() {
     const status = whatsappService.getStatus();
 
     // Si hay carpetas pero no hay sesión activa, limpiar
-    if ((fs.existsSync(authPath) || fs.existsSync(cachePath)) && 
+    if ((fs.existsSync(authPath) || fs.existsSync(cachePath)) &&
         !status.isReady && !status.isInitializing) {
-        
+
         logger.warn('[HEALTH] ⚠️ Detectadas carpetas de sesión huérfanas, limpiando...');
         await cleanupSessionFolders();
     }
@@ -165,7 +165,7 @@ app.post('/start-whatsapp', async (req, res) => {
 
         // Verificar estado actual
         const status = whatsappService.getStatus();
-        
+
         if (status.isReady) {
             return res.json({
                 success: true,
@@ -176,7 +176,7 @@ app.post('/start-whatsapp', async (req, res) => {
             });
         }
 
-        if (status.isInitializing) {
+         if (status.isInitializing) {
             return res.json({
                 success: true,
                 message: 'WhatsApp se está inicializando',
@@ -218,7 +218,7 @@ app.post('/start-whatsapp', async (req, res) => {
             qr: null
         });
 
-    } catch (error) {
+            } catch (error) {
         logger.error('[API] Error en /start-whatsapp:', error);
         res.status(500).json({
             success: false,
@@ -266,7 +266,7 @@ app.get('/get-qr', async (req, res) => {
             });
         }
 
-        res.json({
+                res.json({
             status: 'disconnected',
             qr: null,
             message: 'WhatsApp no está conectado',
@@ -292,7 +292,7 @@ app.post('/stop-whatsapp', async (req, res) => {
         logger.info('[API] 🛑 Solicitud de detener WhatsApp');
 
         const status = whatsappService.getStatus();
-        
+
         if (!status.isReady && !status.isInitializing) {
             return res.json({
                 success: true,
@@ -352,7 +352,7 @@ app.post('/cleanup-session', async (req, res) => {
 
         res.json({
             success: true,
-            message: cleaned 
+            message: cleaned
                 ? 'Sesión limpiada exitosamente. Puedes iniciar WhatsApp nuevamente.'
                 : 'Hubo problemas al limpiar la sesión. Verifica manualmente.',
             cleaned,
@@ -365,13 +365,9 @@ app.post('/cleanup-session', async (req, res) => {
             success: false,
             message: 'Error al limpiar sesión: ' + error.message
         });
-    }
+            }
 });
 
-/**
- * POST /force-cleanup
- * Limpieza forzada (para casos extremos)
- */
 app.post('/force-cleanup', async (req, res) => {
     try {
         logger.info('[API] 🧹💪 Solicitud de limpieza FORZADA');
@@ -400,7 +396,7 @@ app.post('/force-cleanup', async (req, res) => {
 
         res.json({
             success: cleaned,
-            message: cleaned 
+            message: cleaned
                 ? 'Limpieza forzada exitosa. Reinicia el servidor si persisten problemas.'
                 : 'No se pudo limpiar. Reinicia el servidor y elimina carpetas manualmente.',
             cleaned,
@@ -416,10 +412,6 @@ app.post('/force-cleanup', async (req, res) => {
     }
 });
 
-/**
- * POST /retry-connection
- * Reintenta la conexión (limpia y vuelve a iniciar)
- */
 app.post('/retry-connection', async (req, res) => {
     try {
         const { role, permissions } = req.body;
@@ -497,7 +489,7 @@ app.get('/status', async (req, res) => {
             message: 'Error obteniendo estado: ' + error.message
         });
     }
-});
+}); 
 
 /**
  * GET /health
@@ -575,8 +567,6 @@ app.use((err, req, res, next) => {
     });
 });
 
-// ==================== INICIAR SERVIDOR ====================
-
 async function startServer() {
     try {
         // Verificar salud de sesión al inicio
@@ -585,10 +575,10 @@ async function startServer() {
 
         // Verificar conexiones a base de datos
         logger.info('[SERVER] Verificando conexiones a base de datos...');
-        
+
         await dbRoles.query('SELECT 1');
         logger.info('[SERVER] ✅ Conexión a BD de Roles OK');
-        
+
         await dbInmobiliaria.query('SELECT 1');
         logger.info('[SERVER] ✅ Conexión a BD de Inmobiliaria OK');
 
@@ -608,15 +598,15 @@ async function startServer() {
     }
 }
 
-// ==================== MANEJO DE CIERRE GRACEFUL ====================
+
 
 process.on('SIGINT', async () => {
     logger.info('[SERVER] Señal SIGINT recibida, cerrando servidor...');
-    
+
     if (initializationTimeout) {
         clearTimeout(initializationTimeout);
     }
-    
+
     try {
         await whatsappService.destroy();
         logger.info('[SERVER] WhatsApp cerrado correctamente');
@@ -625,17 +615,17 @@ process.on('SIGINT', async () => {
     } catch (error) {
         logger.error('[SERVER] Error cerrando WhatsApp:', error);
     }
-    
+
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
     logger.info('[SERVER] Señal SIGTERM recibida, cerrando servidor...');
-    
+
     if (initializationTimeout) {
         clearTimeout(initializationTimeout);
     }
-    
+
     try {
         await whatsappService.destroy();
         logger.info('[SERVER] WhatsApp cerrado correctamente');
@@ -644,42 +634,21 @@ process.on('SIGTERM', async () => {
     } catch (error) {
         logger.error('[SERVER] Error cerrando WhatsApp:', error);
     }
-    
+
     process.exit(0);
 });
 
 // Manejar errores no capturados
 process.on('uncaughtException', async (error) => {
     logger.error('[SERVER] ❌ Excepción no capturada:', error);
-    
-    // NO llamar handleWhatsAppError aquí, solo loguear
-    // Esto evita loops infinitos
-    if (error.message.includes('Execution context was destroyed')) {
-        logger.warn('[SERVER] Error de navegación de Puppeteer detectado, ignorando...');
-        return; // ← NO hacer cleanup en este error
-    }
+    await handleWhatsAppError(`Excepción no capturada: ${error.message}`);
 });
 
 process.on('unhandledRejection', async (reason, promise) => {
-    const errorMessage = reason?.message || String(reason);
-    logger.error('[SERVER] ❌ Promesa rechazada no manejada:', errorMessage);
-    
-    // SOLO hacer cleanup si es un error CRÍTICO
-    // NO en errores de navegación de Puppeteer
-    if (errorMessage.includes('Execution context was destroyed') ||
-        errorMessage.includes('Navigation') ||
-        errorMessage.includes('Target closed')) {
-        logger.warn('[SERVER] Error de navegación de Puppeteer, ignorando cleanup...');
-        return; // ← NO hacer cleanup
-    }
-    
-    // Solo cleanup en errores verdaderamente críticos
-    if (errorMessage.includes('ECONNREFUSED') || 
-        errorMessage.includes('ETIMEDOUT') ||
-        errorMessage.includes('auth_failure')) {
-        await handleWhatsAppError(`Promesa rechazada: ${errorMessage}`);
-    }
+    logger.error('[SERVER] ❌ Promesa rechazada no manejada:', reason);
+    await handleWhatsAppError(`Promesa rechazada: ${reason}`);
 });
+
 // Iniciar servidor
 startServer();
 
