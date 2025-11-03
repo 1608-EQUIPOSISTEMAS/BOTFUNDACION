@@ -4,13 +4,13 @@ module.exports = {
         port: 12663,
         user: 'root',
         password: 'SkJAJjOTcAsEXpljmzLvlWPqYXdWgRGl',
-        database: 'inmobiliaria'
+        database: 'inmobiliaria2'
     },
     server: {
-        port: 3001
+        port: 3003
     },
     rateLimits: {
-        hour: 1,
+        hour: 2,
         day: 10
     },
     messageDelay: 2,

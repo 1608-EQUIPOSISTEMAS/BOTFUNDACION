@@ -7,6 +7,6 @@ module.exports = {
         database: 'railway'
     },
     server: {
-        port: 3000
+        port: 3002
     }
 };

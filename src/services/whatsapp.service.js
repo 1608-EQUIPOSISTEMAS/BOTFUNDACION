@@ -15,7 +15,7 @@ class WhatsAppService {
         this.currentRole = null;
         this.currentPermissions = [];
         this.botPhoneNumber = null;
-        this.initializationPromise = null; // ← NUEVO: Prevenir inicializaciones múltiples
+        this.initializationPromise = null; 
     }
 
     /**
