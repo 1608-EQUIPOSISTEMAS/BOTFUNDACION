@@ -1,10 +1,10 @@
 module.exports = {
     database: {
-        host: 'maglev.proxy.rlwy.net',
-        port: 12663,
+        host: 'shortline.proxy.rlwy.net',
+        port: 25719,
         user: 'root',
-        password: 'SkJAJjOTcAsEXpljmzLvlWPqYXdWgRGl',
-        database: 'inmobiliaria2'
+        password: 'tZQeEBUDYbCQJfkSABsyIlXNcvTTQDoK',
+        database: 'railway'
     },
     server: {
         port: 3003
