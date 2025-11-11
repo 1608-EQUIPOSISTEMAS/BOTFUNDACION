@@ -280,7 +280,9 @@ async function sendSequentialMessages(client, userPhone, conversationId, message
  */
 async function sendTextMessage(client, userPhone, message, variables) {
     const content = replaceVariables(message.content, variables);
-    const sentMsg = await client.sendMessage(userPhone, content);
+    const sentMsg = await client.sendMessage(userPhone, content, {
+        linkPreview: false  //DESACTIVA LA VISTA PREVIA
+    });
     return sentMsg.id._serialized;
 }
 

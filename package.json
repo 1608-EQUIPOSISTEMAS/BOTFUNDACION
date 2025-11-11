@@ -8,19 +8,24 @@
     "dev": "nodemon src/server.js",
     "clean-session": "node -e \"const fs = require('fs'); const path = require('path'); const authPath = path.join(__dirname, '.wwebjs_auth'); if (fs.existsSync(authPath)) { fs.rmSync(authPath, { recursive: true, force: true }); console.log('Sesión limpiada'); } else { console.log('No hay sesión para limpiar'); }\""
   },
-  "keywords": ["whatsapp", "bot", "inmobiliaria"],
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "inmobiliaria"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "whatsapp-web.js": "^1.23.0",
-    "qrcode": "^1.5.3",
-    "mysql2": "^3.6.5",
-    "express": "^4.18.2",
+    "axios": "^1.6.2",
     "cors": "^2.8.5",
-    "winston": "^3.11.0",
-    "axios": "^1.6.2"
+    "express": "^4.18.2",
+    "mysql2": "^3.6.5",
+    "qrcode": "^1.5.3",
+    "whatsapp-web.js": "^1.23.0",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@types/node-cron": "^3.0.11",
     "nodemon": "^3.0.2"
   }
 }
